@@ -200,10 +200,10 @@ AFRAME.registerSystem('painter', {
     this.sceneEl.emit('drawing-upload-started');
     var self = this;
 
-    var baseUrl = 'https://aframe.io/a-painter/?url=';
+    var baseUrl = 'https://aframe.io/a-painter/?urljson=';
 
-    var dataviews = this.brushSystem.getBinary();
-    var blob = new Blob(dataviews, {type: 'application/octet-binary'});
+    var dataviews = this.brushSystem.getJSON();
+    var blob = new Blob([JSON.stringify(dataviews)], {type: 'application/json'});
     var uploader = 'uploadcare'; // or 'fileio'
     if (uploader === 'fileio') {
       // Using file.io
