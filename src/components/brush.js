@@ -6,13 +6,14 @@ AFRAME.registerComponent('brush', {
     brush: {default: 'smooth'},
     enabled: { default: true }
   },
+  
   init: function () {
     var data = this.data;
     this.color = new THREE.Color(data.color);
 
     this.el.emit('brushcolor-changed', {color: this.color});
     this.el.emit('brushsize-changed', {brushSize: data.size});
-
+    
     this.active = false;
     this.obj = this.el.object3D;
 
@@ -66,6 +67,7 @@ AFRAME.registerComponent('brush', {
       }
     });
   },
+
   update: function (oldData) {
     var data = this.data;
     if (oldData.color !== data.color) {
@@ -76,7 +78,9 @@ AFRAME.registerComponent('brush', {
       this.el.emit('brushsize-changed', {size: data.size});
     }
   },
-  tick: (function () {
+
+  tick: (
+    function () {
     var position = new THREE.Vector3();
     var rotation = new THREE.Quaternion();
     var scale = new THREE.Vector3();
@@ -88,7 +92,8 @@ AFRAME.registerComponent('brush', {
         this.currentStroke.addPoint(position, rotation, pointerPosition, this.sizeModifier, time);
       }
     };
-  })(),
+  }) (),
+
   startNewStroke: function () {
     document.getElementById('ui_paint').play();
     this.currentStroke = this.system.addNewStroke(this.data.brush, this.color, this.data.size);
