@@ -1,6 +1,7 @@
 /* global AFRAME Blob uploadcare */
 
 var saveAs = require('../../vendor/saveas.js').saveAs;
+const https = require('https');
 
 AFRAME.registerSystem('painter', {
   init: function () {
@@ -185,6 +186,103 @@ AFRAME.registerSystem('painter', {
     });
 
     console.info('A-PAINTER Version: ' + this.version);
+  },
+  improv: function() {
+    var json = this.brushSystem.getJSON();
+    var sk_rnn0 = [];
+    var sk_rnn1 = [];
+    var i;
+    var j;
+    for (i=0; i < json.strokes.length;i++){
+      var l0 = json.strokes[i].points[0].position[0];
+      var l1 = json.strokes[i].points[0].position[1];
+      for (j = 1; j < json.strokes[i].points.length; j++){
+        sk_rnn0.push(json.strokes[i].points[j].position[0] - l0 );
+        sk_rnn1.push(json.strokes[i].points[j].position[1] - l1 );
+      }
+    }
+    var final_inp = '';
+    var l_x = sk_rnn0[0];
+    var l_y = sk_rnn1[0];
+    for(i=1;i< sk_rnn0.length; i= i + 10){
+      final_inp += '['+(l_x - sk_rnn0[i]) * 100+', '+(l_y - sk_rnn1[i]) * 100+',1,0,0],'
+      l_x = sk_rnn0[i]
+      l_y = sk_rnn1[i]
+    }
+    // final input is ready!
+    console.log("inputbelow:");
+    console.log(final_inp);
+    console.log("outputbelow:")
+    var u = 'http://localhost:8000/simple_predict?strokes=['+(final_inp.substring(0,final_inp.length - 1))+']';
+    
+    var finalUrl = u; //change to accept 2d strokes from the current stroke
+    https.get(finalUrl, (resp) => {
+      let data = '';
+      resp.on('data', (chunk) => {
+        data += chunk;
+      });
+      resp.on('end', () => {
+        // reply received in data
+        // convert it to loadJSON's argument!
+        // console.log(data)
+        var value = JSON.parse(data);
+        console.log(value);
+        // dx and dy to world coordinates (for debugging)
+        var sk1_rnn0 = [];
+        var sk1_rnn1 = [];
+
+        var l_x = value[0][0]/100;
+        var l_y = value[0][1]/100;
+        for (i = 1; i < value.length; i++){
+          sk1_rnn0.push( l_x - value[i][0] / 100 );
+          sk1_rnn1.push( l_y - value[i][1] / 100 );
+          l_x = l_x - value[i][0] / 100;
+          l_y = l_y - value[i][1] / 100;
+        }
+        // sk1_rnn0.push(l_x - value[i][0]/100);
+        // sk1_rnn1.push(l_y - value[i][1]/100);
+        // world coordinates to JSON object that a-painter understands
+        var prev_timestep = json.strokes[ json.strokes.length - 1 ].points[ json.strokes[json.strokes.length - 1].points.length - 1 ].timestamp;
+        var prev_orientation = json.strokes[ json.strokes.length - 1 ].points[ json.strokes[json.strokes.length - 1].points.length - 1 ].orientation;
+        var prev_x = json.strokes[ json.strokes.length - 1 ].points[ json.strokes[json.strokes.length - 1].points.length - 1 ].position[0];
+        var prev_y = json.strokes[ json.strokes.length - 1 ].points[ json.strokes[json.strokes.length - 1].points.length - 1 ].position[1];
+        var prev_z = json.strokes[ json.strokes.length - 1 ].points[ json.strokes[json.strokes.length - 1].points.length - 1 ].position[2];
+        var prev_index = json.strokes[ json.strokes.length - 1 ].brush.index;
+        var prev_brush_color = json.strokes[ json.strokes.length - 1 ].brush.color;
+        var prev_size = json.strokes[ json.strokes.length - 1 ].brush.size;
+        var prev_pressure = 1.0;
+        var cur_stroke = {"brush": {"index": prev_index, "color":prev_brush_color, "size":prev_size }, "points":[] };
+        for (i=0; i<value.length; i += 1){
+          if(value[i][2] == 1){
+            var pos = [ prev_x + sk1_rnn0[i], prev_y + sk1_rnn1[i], prev_z ];
+            var temp_point = {"orientation":prev_orientation, "position":pos, "pressure":prev_pressure,"timestamp":prev_timestep+1};
+            cur_stroke.points.push(temp_point);
+          }
+          else if (value[i][3] == 1){
+            var pos = [ prev_x + sk1_rnn0[i], prev_y + sk1_rnn1[i], prev_z ];
+            var temp_point = {"orientation":prev_orientation, "position":pos, "pressure":prev_pressure,"timestamp":prev_timestep+1};
+            cur_stroke.points.push(temp_point);
+            if (i < value.length-2){
+              json.strokes.push(cur_stroke);
+              cur_stroke = {"brush": {"index": prev_index, "color":prev_brush_color, "size":prev_size }, "points":[] };
+            }
+          }
+          else {
+            var pos = [ prev_x + sk1_rnn0[i], prev_y + sk1_rnn1[i], prev_z ];
+            var temp_point = {"orientation":prev_orientation, "position":pos, "pressure":prev_pressure,"timestamp":prev_timestep+1};
+            cur_stroke.points.push(temp_point);
+            json.strokes.push(cur_stroke);
+            break;
+          }
+          prev_timestep += 1
+        }
+
+        // load json
+        this.brushSystem.loadJSON(json);
+      });
+    }).on("error", (err) => {
+      console.log("Error: " + err.message)});
+
   },
   saveJSON: function () {
     var json = this.brushSystem.getJSON();

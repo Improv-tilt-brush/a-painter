@@ -210,7 +210,7 @@ AFRAME.registerComponent('ui', {
       }
       case name === 'save': {
         if (!this.pressedObjects[name]) {
-          this.el.sceneEl.systems.painter.upload();
+          this.el.sceneEl.systems.painter.improv();
           this.playSound('ui_click1');
         }
         break;
